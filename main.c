@@ -16,7 +16,6 @@
 char init_repo();
 char add_file(const char* path);
 char push();
-//void saveToDisk();
 const char* hashfile(const char* filepath);
 char copy_file(char* src_path, char* dest_path);
 char commit();
