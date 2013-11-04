@@ -20,8 +20,10 @@ char push();
 const char* hashfile(const char* filepath);
 char copy_file(char* src_path, char* dest_path);
 char commit();
+void err_handler(const char* msg);
 
 GHashTable *hash;
+int revision = -1;
 
 int main(int argc, char** argv) {
     printf("Welcome to Nit\n");
@@ -107,26 +109,48 @@ char copy_file(char* src_path, char* dest_path) {
 
 }
 
-char init_repo() {
-    //Check to see if existing repo. Load that one.
-    //Otherwise, create the new repo.
-    
-    /*
-    GHashTable* hash = g_hash_table_new(g_str_hash, g_str_equal);
-    g_hash_table_insert(hash, "Virginia", "Richmond");
-    g_hash_table_insert(hash, "Texas", "Austin");
-    g_hash_table_insert(hash, "Ohio", "Columbus");
-    printf("There are %d keys in the hash\n", g_hash_table_size(hash));
-    printf("The capital of Texas is %s\n", g_hash_table_lookup(hash, "Texas"));
-    gboolean found = g_hash_table_remove(hash, "Virginia");
-    printf("The value 'Virginia' was %sfound and removed\n", found ? "" : "not ");
-    g_hash_table_destroy(hash);
-    */
+void err_handler(const char* msg) {
+    if(msg)
+        printf("%s\n", msg);
+    exit(1);
+}
 
-    if(hash == NULL) {
-        printf("The nit structure is not initialized");
+/* Check to see if the revision and hashtable are initialized. If not,
+ * initilize them from a database file stored on the filesystem */
+char init_repo() {
+       if(hash == NULL || revision < 0) {
         hash = g_hash_table_new(g_str_hash, g_str_equal);
         /* Read from the text file and map each thing */
+        FILE *load = fopen(".nitdb", "r");
+        if(load == NULL) 
+            err_handler("Failed to open data store");
+
+        /* Allocated buffer for reading filesys */
+        char *tmp, *line, key;
+        line = malloc(sizeof(char) * (1 + BUF_SIZE));
+        tmp = malloc(sizeof(char) * (1 + BUF_SIZE));
+        if(line == NULL || tmp == NULL)
+            err_handler("Memory allocation failed in initialization");
+        line[BUF_SIZE] = '\0';
+
+        /* Read active revision number */
+        size_t buf_size = BUF_SIZE;
+        if(getline(&line, &buf_size, load) != -1) 
+            revision = atoi(line);
+        else
+            err_handler("Failed to read revision number!");
+
+        /* Populate hashtable */
+        key = 1;
+        while(getline(&line, &buf_size, load) != -1) {
+            if(key) 
+                strcpy(tmp, line);
+            else 
+                g_hash_table_insert(hash, tmp, line);
+            
+            key = !key;
+        }
+        free(line);
     }
     system("mkdir .nit");
     return TRUE;
@@ -172,7 +196,7 @@ char commit() {
         }
         key_list = key_list->next;
     }
-
+    return TRUE;
 }
 
 char push() {
