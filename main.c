@@ -27,61 +27,66 @@ void err_handler(const char* msg);
 void set_up_nit();
 void strip_newline(char *buff);
 void skiplines(FILE* f, int lines);
+void delete(char* path);
 
 int revision = -1;
 char cwd[BUF_SIZE];
+char* del;
 
 int main(int argc, char** argv) {
-    exec("test");
-    printf("Welcome to Nit\n");
     if(argc <= 1) {
         printf(NO_CMD);
         return 0;
     }
     char* cmd = argv[1];
-    if(strcmp(cmd, "init") == 0) {
+    if(strcmp(cmd, "init") == 0) 
+    {
+        printf("Welcome to Nit\n");
         set_up_nit();
-        return 0;
-    }
-    if(init_repo() == FALSE) {
-        printf("Nit init failed\n");
-        exit(1);
-    }
-    if(strcmp(cmd, "update") == 0) {
+    } 
+    else if (init_repo() == FALSE) 
+    {
+        err_handler("Nit init failed\n");
+    } 
+    else if(strcmp(cmd, "update") == 0) 
+    {
         printf("Update source code\n");
-        return 0;
-    }
-    if(strncmp(cmd, "commit", 6) == 0) {
+    } 
+    else if(strncmp(cmd, "commit", 6) == 0) 
+    {
         printf("Committing revision %d.\n", revision);
         commit();
         serialize();
-        return 0;
-    }
-    
-    /* Commands from this point on require at least one parameter */
-    if(argc <= 2) {
+    } 
+    else if(argc <= 2) 
+    {
+        /* Commands from this point on require an argument */
         printf("Command need more arguments. Try Nit help. \n");
-        return 0;
-    }
-
-    if(strncmp(cmd, "revert", 6) == 0) {
+    } 
+    else if(strncmp(cmd, "revert", 6) == 0) 
+    {
         revert(atoi(argv[2]));
         serialize();
-        return 0;
-    }
-
-    if(strncmp(cmd, "add", 3) == 0) {
+    } 
+    else if(strncmp(cmd, "add", 3) == 0) 
+    {
         add_file(argv[2]);
         serialize();
-        return 0;
-    }
-    if(strncmp(cmd, "delete", 6) == 0) {
-        printf("Delete command\n");
+    } 
+    else if(strncmp(cmd, "delete", 6) == 0) 
+    {
+        delete(argv[2]);
         serialize();
         return 0;
+    } else 
+    {
+        printf(NO_CMD);
     }
-    printf(NO_CMD);
     return 0;
+}
+
+void delete(char* path) {
+    del = path;
 }
 
 void set_up_nit() {
@@ -195,7 +200,6 @@ char init_repo() {
             free(line);
             err_handler("Failed to read CWD.");
         }
-        printf("Recovered CWD at %s.\n", cwd);
         free(line);
     }
     return TRUE;
@@ -261,6 +265,7 @@ void revert(const int num) {
 
 /* Initialized the nit database to be aware of a new file. Users still have to
  * commit to formally track the file. */
+/* TODO: Clever paths */
 char add_file(const char* path) {
     //Add a new entry in the hashtable, populate with the hash checksum.
     if(db_findline(path))
@@ -273,16 +278,6 @@ char add_file(const char* path) {
     if(!db_writeline(db_buf))
         err_handler("Failed to write to database");
     free((void*)sha512);
-    
-    //char buf[BUF_SIZE] = {0};
-    //sprintf(buf, "mkdir ./.nit/%d", revision);
-    //exec(buf);
-    /* for this to work the path must be relative, not hardcoded path.
-     * perhaps do a substring in path for pwd. If not found, then the file
-     * is untracked, otherwise trucate the path to be from where the base
-     * directory is. Also, failed for nested structure maybe. */
-    //sprintf(buf, "cp %s ./.nit/%d/%s", path, revision, path);
-    //exec(buf);
     return TRUE;
 }
 
@@ -306,7 +301,6 @@ char commit() {
         if(is_path) {
             strip_newline(buf);
             sprintf(exec_buf, "cp %s ./.nit/%d/%s", buf, revision, buf);
-            printf("LINE: %s COMMAND: %s\n", buf, exec_buf);
             exec(exec_buf);
         }  
         is_path = !is_path;
@@ -374,9 +368,15 @@ void serialize() {
     fprintf(f, "%s\n", rev);
     fprintf(f, "%s\n", cwd);
     skiplines(b, REPO_OFFSET);
-    while(getline(&buf, &buf_size, b) != -1)
-        fprintf(f, "%s", buf);
-
+    while(getline(&buf, &buf_size, b) != -1) {
+        strip_newline(buf);
+        if(del)
+            printf("BUF: %s DEL: %s STRCMP: %d\n", buf, del, strcmp(del, buf));
+        if(del && (strcmp(del, buf) == 0)) {
+            skiplines(b, 1);
+        } else
+            fprintf(f, "%s\n", buf);
+    }
     free(buf);
     free(rev);
 }
