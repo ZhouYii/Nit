@@ -21,6 +21,7 @@ const char* hashfile(const char* filepath);
 char copy_file(char* src_path, char* dest_path);
 char commit();
 void serialize();
+void revert(const int revision);
 void exec(const char* cmd);
 void err_handler(const char* msg);
 void set_up_nit();
@@ -37,13 +38,11 @@ int main(int argc, char** argv) {
         printf(NO_CMD);
         return 0;
     }
-
     char* cmd = argv[1];
     if(strcmp(cmd, "init") == 0) {
         set_up_nit();
         return 0;
     }
-
     if(init_repo() == FALSE) {
         printf("Nit init failed\n");
         exit(1);
@@ -52,7 +51,6 @@ int main(int argc, char** argv) {
         printf("Update source code\n");
         return 0;
     }
-
     if(strncmp(cmd, "commit", 6) == 0) {
         printf("Committing revision %d.\n", revision);
         commit();
@@ -63,6 +61,12 @@ int main(int argc, char** argv) {
     /* Commands from this point on require at least one parameter */
     if(argc <= 2) {
         printf("Command need more arguments. Try Nit help. \n");
+        return 0;
+    }
+
+    if(strncmp(cmd, "revert", 6) == 0) {
+        revert(atoi(argv[2]));
+        serialize();
         return 0;
     }
 
@@ -87,6 +91,7 @@ void set_up_nit() {
         err_handler("Failed to get current working directory");
     fprintf(db, "0\n%s\n", cwd);
     exec("mkdir .nit");
+    exec("mkdir .nit/0");
 }
 
 /* Calculates SHA512 has for a file specified by filepath.
@@ -238,6 +243,20 @@ void exec(const char *cmd) {
     strcpy((buffer + len), " > /dev/null 2>&1");
     system(buffer);
     free(buffer);
+}
+
+/*  Reverts to an older version.
+ *  TODO : more error checking.
+ * */
+void revert(const int num) {
+    if(num < 0 || num >= revision)
+        return;
+    char exec_buf[BUF_SIZE+1];
+    exec_buf[BUF_SIZE] = '\0';
+    exec("rm ./*");
+    sprintf(exec_buf, "cp ./.nit/%d/* .", num);
+    exec(exec_buf);
+    revision = num;
 }
 
 /* Initialized the nit database to be aware of a new file. Users still have to
