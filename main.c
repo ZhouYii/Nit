@@ -6,6 +6,7 @@
 #include <glib.h>
 
 #define BUF_SIZE 1024
+#define REPO_OFFSET 2
 #define SHA512_SIZE 128
 #define NO_CMD "Not a valid command. Try Nit help.\n"
 
@@ -24,8 +25,8 @@ void exec(const char* cmd);
 void err_handler(const char* msg);
 void set_up_nit();
 void strip_newline(char *buff);
+void skiplines(FILE* f, int lines);
 
-GHashTable *hash;
 int revision = -1;
 char cwd[BUF_SIZE];
 
@@ -41,6 +42,11 @@ int main(int argc, char** argv) {
     if(strcmp(cmd, "init") == 0) {
         set_up_nit();
         return 0;
+    }
+
+    if(strcmp(cmd, "commit") == 0) {
+        commit();
+        serialize();
     }
 
     if(init_repo() == FALSE) {
@@ -80,6 +86,9 @@ void set_up_nit() {
     exec("mkdir .nit");
 }
 
+/* Calculates SHA512 has for a file specified by filepath.
+ * mallocs so calling function must remember to free
+ * The buffer returned is of size SHA512_SIZE and null terminated*/
 const char* hashfile(const char* filepath) {
     size_t new_len;
     if(filepath == NULL)
@@ -146,27 +155,27 @@ void strip_newline(char *buf) {
 /* Check to see if the revision and hashtable are initialized. If not,
  * initilize them from a database file stored on the filesystem */
 char init_repo() {
-    if(hash == NULL || revision < 0) {
-        hash = g_hash_table_new(g_str_hash, g_str_equal);
+    if(revision < 0) {
         /* Read from the text file and map each thing */
         FILE *load = fopen(".nitdb", "r");
         if(load == NULL) 
             err_handler("Failed to open data store");
 
         /* Allocated buffer for reading filesys */
-        char *tmp, *line, key;
+        char *line;
         line = malloc(sizeof(char) * (1 + BUF_SIZE));
-        tmp = malloc(sizeof(char) * (1 + BUF_SIZE));
-        if(line == NULL || tmp == NULL)
+        if(line == NULL)
             err_handler("Memory allocation failed in initialization");
-        line[BUF_SIZE] = tmp[BUF_SIZE] = '\0';
+        line[BUF_SIZE] = '\0';
 
         /* Read active revision number */
         size_t buf_size = BUF_SIZE;
         if(getline(&line, &buf_size, load) != -1) 
             revision = atoi(line);
-        else
+        else {
+            free(line);
             err_handler("Failed to read revision number!");
+        }
         printf("Initialized at revision number %d.\n", revision);
 
         /* Recover CWD */
@@ -174,24 +183,47 @@ char init_repo() {
             strip_newline(line);
             strcpy(cwd, line);
         }
-        else
+        else {
+            free(line);
             err_handler("Failed to read CWD.");
-        printf("Recovered CWD at %s.\n", cwd);
-        /* Populate hashtable */
-        key = 1;
-        while(getline(&line, &buf_size, load) != -1) {
-            strip_newline(line);
-            if(key) 
-                strcpy(tmp, line);
-            else 
-                g_hash_table_insert(hash, (void*)tmp, (void*)line);
-            key = !key;
         }
+        printf("Recovered CWD at %s.\n", cwd);
         free(line);
-        free(tmp);
     }
     return TRUE;
-}   
+}
+
+char db_findline(const char* line) {
+    char *buf = malloc(sizeof(char) * (BUF_SIZE + 1));
+    if(line == NULL || buf == NULL)
+        return FALSE;
+    int len; 
+    size_t buf_size = BUF_SIZE;
+    buf[BUF_SIZE] = '\0';
+    FILE *db = fopen(".nitdb", "r");
+    if(db == NULL)
+        err_handler("Failed to open file in db_findline");
+    while((len = getline(&buf, &buf_size, db)) != -1) {
+        strip_newline(buf);
+        if(strcmp(line, buf) == 0) {
+            free(buf);
+            return TRUE;
+        }
+    }
+    free(buf);
+    return FALSE;
+}
+
+char db_writeline(const char* line) {
+    FILE *db = fopen(".nitdb", "a");
+    if(db == NULL)
+        err_handler("Failed to open file in db_writeline");
+    if(fprintf(db, "%s", line) < 0)
+        err_handler("Failed to write to database");
+    fflush(db);
+    return TRUE;
+}
+
 void exec(const char *cmd) {
     if(cmd == NULL)
         return;
@@ -209,52 +241,57 @@ void exec(const char *cmd) {
  * commit to formally track the file. */
 char add_file(const char* path) {
     //Add a new entry in the hashtable, populate with the hash checksum.
-    if(hash == NULL) {
-        printf("initialization is wrong!");
-        exit(1);
-    }
-    gboolean tracked = g_hash_table_contains(hash, (gconstpointer) path);
-    if(tracked) {
+    if(db_findline(path))
         err_handler("This file is already being tracked by Nit!");
-    }
     
-    /* Maybe my functionality is confused... this updating functionality should
-     * be with the commit or something */
-    /* Find the hash and insert the pair into the hashtable */
     const char* sha512 = hashfile(path);
-    g_hash_table_insert(hash, (void*) path, (void *) sha512);
-    char buf[BUF_SIZE] = {0};
-    sprintf(buf, "mkdir ./.nit/%d", revision);
-    exec(buf);
+    char db_buf[BUF_SIZE + 1] = {0};
+    db_buf[BUF_SIZE] = '\0';
+    sprintf(db_buf, "%s\n%s\n", path, sha512);
+    if(!db_writeline(db_buf))
+        err_handler("Failed to write to database");
+    free((void*)sha512);
+    
+    //char buf[BUF_SIZE] = {0};
+    //sprintf(buf, "mkdir ./.nit/%d", revision);
+    //exec(buf);
     /* for this to work the path must be relative, not hardcoded path.
      * perhaps do a substring in path for pwd. If not found, then the file
      * is untracked, otherwise trucate the path to be from where the base
      * directory is. Also, failed for nested structure maybe. */
-    sprintf(buf, "cp %s ./.nit/%d/%s", path, revision, path);
-    exec(buf);
-    free((void*)sha512);
+    //sprintf(buf, "cp %s ./.nit/%d/%s", path, revision, path);
+    //exec(buf);
     return TRUE;
 }
 
 /* Commit : push, but for local. for each key in the hash, see if the sum is still the same. Update
  * revision */
 char commit() {
-    if(hash == NULL) 
+    if(revision < 0) 
         return FALSE;
-    
-    GList* key_list = g_hash_table_get_keys(hash);
-    while(key_list) {
-        const char* curr_hash = hashfile(key_list->data);
-        gconstpointer old_key = (gconstpointer) key_list->data;
-        const char* old_hash = g_hash_table_lookup(hash, old_key);
-        if(strcmp(curr_hash, old_hash) != 0) {
-            /* Do some changes */
-        }
-        key_list = key_list->next;
-        free((void*)curr_hash);
+    size_t buf_size = BUF_SIZE;
+    char buf[BUF_SIZE + 1];
+    char exec_buf[BUF_SIZE + 1];
+    buf[BUF_SIZE] = exec_buf[BUF_SIZE] = '\0';
+    FILE* db = fopen(".nitdb", "r");
+    if(db == NULL) 
+        err_handler("Failed to open db from commit()");
+    skiplines(db, REPO_OFFSET);
+    char is_path = TRUE;
+    sprintf(exec_buf, "mkdir ./.nit/%d", revision+1);
+    exec(exec_buf);
+    while(getline((char**)&buf, &buf_size, db) != -1) {
+        if(is_path) {
+            sprintf(exec_buf, "cp %s ./.nit/%d/%s", buf, revision, buf);
+            exec(exec_buf);
+        }  
+        is_path = !is_path;
     }
+    sprintf(exec_buf, "cp .nitdb ./.nit/%d/.nitdb", revision);
+    exec(exec_buf);
+    revision++;
     return TRUE;
-}
+} 
 
 char push() {
     /* to server */
@@ -282,37 +319,39 @@ char* itoc(int val, int digits) {
     return buf;
 }
 
-void serialize() {
-    if(hash == NULL)
-        return; 
+void skiplines(FILE* f, int lines) {
+    if(f == NULL)
+        return;
+    char c;
+    while(lines > 0 && (c = fgetc(f)) != EOF) 
+        if(c == '\n')
+            lines--;
+}
 
+void serialize() {
+    if(revision < 0)
+        return; 
+    system("cat .nitdb > .nitdb_bak");
     FILE *f = fopen(".nitdb", "w");
-    if(f == NULL) {
+    FILE *b = fopen(".nitdb_bak", "r");
+    size_t buf_size = BUF_SIZE;
+    char *buf = malloc(sizeof(char) * (1 + BUF_SIZE));
+    buf[BUF_SIZE] = '\0';
+    if(f == NULL || b == NULL) {
         printf("Error serializing database!");
         return;
     }
     /* Serialize revision */
-    char* buf = itoc(revision, num_digits(revision));
-    printf("Serializing revision number %s.\n", buf);
-    if(buf == NULL)
+    char* rev = itoc(revision, num_digits(revision));
+    if(rev == NULL)
         err_handler("Serializing revision failed");
-    fprintf(f, "%s\n", buf);
+    printf("Serializing revision number %s.\n", rev);
+    fprintf(f, "%s\n", rev);
     fprintf(f, "%s\n", cwd);
-    
-    GHashTableIter iter;
-    gpointer key, value;
-    g_hash_table_iter_init(&iter, hash);
-    while(g_hash_table_iter_next(&iter, &key, &value)) {
-        printf("Key: %s, Value: %s.\n", key, value);
-        fprintf(f, "%s\n%s\n", key, value);
-    } 
-
-    printf("Serializing keys\n");
-    GList* keys = g_hash_table_get_keys(hash);
-    while(keys != NULL) {
-        printf("Key:%s\n", keys->data);
-        keys = keys->next;
-    }
+    skiplines(b, REPO_OFFSET);
+    while(getline(&buf, &buf_size, b) != -1)
+        fprintf(f, "%s", buf);
 
     free(buf);
+    free(rev);
 }
