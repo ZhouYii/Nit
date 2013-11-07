@@ -44,16 +44,19 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    if(strcmp(cmd, "commit") == 0) {
-        commit();
-        serialize();
-    }
-
     if(init_repo() == FALSE) {
         printf("Nit init failed\n");
         exit(1);
-    }    if(strcmp(cmd, "update") == 0) {
+    }
+    if(strcmp(cmd, "update") == 0) {
         printf("Update source code\n");
+        return 0;
+    }
+
+    if(strncmp(cmd, "commit", 6) == 0) {
+        printf("Committing revision %d.\n", revision);
+        commit();
+        serialize();
         return 0;
     }
     
@@ -270,7 +273,7 @@ char commit() {
     if(revision < 0) 
         return FALSE;
     size_t buf_size = BUF_SIZE;
-    char buf[BUF_SIZE + 1];
+    char *buf = malloc(sizeof(char) * (BUF_SIZE + 1));
     char exec_buf[BUF_SIZE + 1];
     buf[BUF_SIZE] = exec_buf[BUF_SIZE] = '\0';
     FILE* db = fopen(".nitdb", "r");
@@ -280,9 +283,11 @@ char commit() {
     char is_path = TRUE;
     sprintf(exec_buf, "mkdir ./.nit/%d", revision+1);
     exec(exec_buf);
-    while(getline((char**)&buf, &buf_size, db) != -1) {
+    while(getline(&buf, &buf_size, db) != -1) {
         if(is_path) {
+            strip_newline(buf);
             sprintf(exec_buf, "cp %s ./.nit/%d/%s", buf, revision, buf);
+            printf("LINE: %s COMMAND: %s\n", buf, exec_buf);
             exec(exec_buf);
         }  
         is_path = !is_path;
@@ -290,6 +295,7 @@ char commit() {
     sprintf(exec_buf, "cp .nitdb ./.nit/%d/.nitdb", revision);
     exec(exec_buf);
     revision++;
+    free(buf);
     return TRUE;
 } 
 
