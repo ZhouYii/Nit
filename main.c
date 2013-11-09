@@ -147,8 +147,15 @@ void revert(const int num) {
 
 /* Initialized the nit database to be aware of a new file. Users still have to
  * commit to formally track the file. */
-/* TODO: Clever paths */
 char add_file(const char* path) {
+    if(path == NULL)
+        err_handler("Added file path is not valid!");
+    char t = path[0];
+    /* Do not let them add files from parent directories. Potentially security
+     * issue if someone sudos and files are copied all over the file system */
+    if(t == '~' || t == '/')
+        err_handler("File path is not in scope");
+
     //Add a new entry in the hashtable, populate with the hash checksum.
     if(db_findline(path))
         err_handler("This file is already being tracked by Nit!");
