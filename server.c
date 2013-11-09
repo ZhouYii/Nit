@@ -7,46 +7,41 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
- 
-int main(void)
-{
-    int listenfd = 0,connfd = 0;
-  
-  struct sockaddr_in serv_addr;
- 
-  char sendBuff[1025];  
-  int numrv;  
- 
-  listenfd = socket(AF_INET, SOCK_STREAM, 0);
-  printf("socket retrieve success\n");
-  
-  memset(&serv_addr, '0', sizeof(serv_addr));
-  memset(sendBuff, '0', sizeof(sendBuff));
-      
-  serv_addr.sin_family = AF_INET;    
-  serv_addr.sin_addr.s_addr = htonl(INADDR_ANY); 
-  serv_addr.sin_port = htons(5000);    
- 
-  bind(listenfd, (struct sockaddr*)&serv_addr,sizeof(serv_addr));
-  
-  if(listen(listenfd, 10) == -1){
-      printf("Failed to listen\n");
-      return -1;
-  }
-     
-  
-  while(1)
-    {
-      
-      connfd = accept(listenfd, (struct sockaddr*)NULL ,NULL); // accept awaiting request
-  
-      strcpy(sendBuff, "Message from server");
-      write(connfd, sendBuff, strlen(sendBuff));
- 
-      close(connfd);    
-      sleep(1);
+#include "const.c"
+#include "helpers.c"
+
+int main(int argc, char** argv) {
+    int socket_fd = 0, conn_fd =0;
+    struct sockaddr_in server_addr;
+
+    char send_buf[BUF_SIZE + 1];
+
+    socket_fd = socket(PF_INET, SOCK_STREAM, 0);
+    if(socket_fd == -1) 
+        err_handler("Failed to get socked file descriptor");
+
+    /* Zero the IPV6 compatibility bits */
+    memset(&server_addr, '0', sizeof(server_addr));
+    memset(&send_buf, '0', sizeof(send_buf));
+
+    server_addr.sin_family = AF_INET;
+    /* Standardize endian-ness */
+    server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    server_addr.sin_port = htons(PORT_NUM);
+
+    if(bind(socket_fd, (struct sockaddr*) &server_addr, sizeof(server_addr)) == -1)
+        err_handler("Failed to bind port");
+
+    if(listen(socket_fd, 10) == -1)
+        err_handler("Failed to listen on port");
+
+    while(1) {
+        /* Reading from queue of requests */
+        conn_fd = accept(socket_fd, (struct sockaddr*) NULL, NULL);
+        strcpy(send_buf, "Server response");
+        write(conn_fd, send_buf, strlen(send_buf));
+        close(conn_fd);
+        sleep(1);
     }
- 
- 
-  return 0;
+    return 0;
 }
