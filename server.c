@@ -38,10 +38,14 @@ int main(int argc, char** argv) {
     while(1) {
         /* Reading from queue of requests */
         conn_fd = accept(socket_fd, (struct sockaddr*) NULL, NULL);
-        strcpy(send_buf, "Server response");
-        write(conn_fd, send_buf, strlen(send_buf));
-        close(conn_fd);
+        char recv_buf[BUF_SIZE + 1];
+        while(recv(conn_fd, recv_buf, BUF_SIZE, NO_FLAGS) > 0) 
+        {
+            printf("Client message: %s\n", recv_buf);
+            send(conn_fd, "ack", strlen("ack"), NO_FLAGS);
+        }
         sleep(1);
     }
+        close(conn_fd);
     return 0;
 }
