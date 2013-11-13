@@ -15,49 +15,50 @@
 #define KEY "password"` */
 
 char* get_permissions(const char* path);
+char wait_ack(int sock_fd, char* buf);
+char send_file(int sock_fd, char* filepath);
  
 int main(void)
 {
-    free(get_permissions("helpers.c"));
-    /*
-    int sock_fd = 0,n = 0;
-    char recvBuff[1024];
+    int sock_fd = 0;
     struct sockaddr_in serv_addr;
  
-    memset(recvBuff, '0' ,sizeof(recvBuff));
     if((sock_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
-    {
-        printf("\n Error : Could not create socket \n");
-        return 1;
-    }
- 
+        err_handler("Cannot create socket");
+
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(PORT_NUM);
     serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
     if(connect(sock_fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr))<0)
-    {
-        printf("\n Error : Connect Failed \n");
-        return 1;
-    }
-    
-    send(sock_fd, "hi", strlen("hi"), NO_FLAGS);
-    char in_buf[BUF_SIZE+1];
-    int len;
-    while((len = read((int)stdin, in_buf, BUF_SIZE)) > 0) {
-        printf("Transmitting message : %s\n", in_buf);
-        send(sock_fd, in_buf, len, NO_FLAGS);
-        n = recv(sock_fd, recvBuff, sizeof(recvBuff)-1, NO_FLAGS);
-        if(n > 0) {
-            recvBuff[n] = 0;
-            printf("RECIEVED : %s\n", recvBuff);
-        }
-    }
+        err_handler("Connection failed");
 
-    if(n < 0)
-      printf("\n Read Error \n");
-    return 0; */
+    send(sock_fd, "A", strlen("A"), NO_FLAGS);
+    if(wait_ack(sock_fd, recv_buf))
+        printf("works");
+    send(sock_fd, "A", strlen("A"), NO_FLAGS);
+    if(wait_ack(sock_fd, recv_buf))
+        printf("works");
+    send(sock_fd, "A", strlen("A"), NO_FLAGS);
+    if(wait_ack(sock_fd, recv_buf))
+        printf("works");
+    send(sock_fd, "A", strlen("A"), NO_FLAGS);
+    if(wait_ack(sock_fd, recv_buf))
+        printf("works");
+    return 0; 
 }
+
+char send_file(int sock_fd, char* filepath) {
+    char recv_buf[BUF_SIZE+1];
+    memset(recv_buf, '\0', sizeof(recv_buf));
+    FILE* f = fopen(filepath);
+}
+
+char wait_ack(int sock_fd, char* buf) {
+    recv(sock_fd, buf, BUF_SIZE, NO_FLAGS);
+    return (strcmp(buf, ACK) == 0);
+}
+
 /* Given a line from stat, finds the location of the 9 rwx digits.
  * skips the leading '-' character.
  */

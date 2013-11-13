@@ -44,11 +44,11 @@ int main(int argc, char** argv) {
         while(recv(conn_fd, recv_buf, BUF_SIZE, NO_FLAGS) > 0) 
         {
             printf("Client message: %s\n", recv_buf);
-            send(conn_fd, "ack", strlen("ack"), NO_FLAGS);
+            send(conn_fd, ACK, strlen(ACK), NO_FLAGS);
         }
-        sleep(1);
-    }
         close(conn_fd);
+        printf("CLOSED");
+    }
     return 0;
 }
 
