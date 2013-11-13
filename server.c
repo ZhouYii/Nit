@@ -10,6 +10,8 @@
 #include "const.c"
 #include "helpers.c"
 
+void recv_file();
+
 int main(int argc, char** argv) {
     int socket_fd = 0, conn_fd =0;
     struct sockaddr_in server_addr;
@@ -48,4 +50,14 @@ int main(int argc, char** argv) {
     }
         close(conn_fd);
     return 0;
+}
+
+void recv_file() {
+    /* Assume the host first send filename + permissions in the format
+     * ///FILENAME///PERMISSIONS. The choice of '/' is because it is not
+     * a valid file name character */
+
+    //while 1 until a message is recieved with the correct format
+
+    /* Read a file until the buffer contains an EOF */
 }
