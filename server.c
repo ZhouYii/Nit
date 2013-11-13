@@ -44,7 +44,18 @@ int main(int argc, char** argv) {
         while(recv(conn_fd, recv_buf, BUF_SIZE, NO_FLAGS) > 0) 
         {
             printf("Client message: %s\n", recv_buf);
-            send(conn_fd, ACK, strlen(ACK), NO_FLAGS);
+            if(strcmp(recv_buf, OP_SEND_FILE) == 0) {
+                printf("Waiting on a file!\n");
+                send(conn_fd, ACK, strlen(ACK), NO_FLAGS);
+                if(recv(conn_fd, recv_buf, BUF_SIZE, NO_FLAGS) > 0) {
+                    char* ptr;
+                    if((ptr = strstr(recv_buf, SEPARATOR)) != NULL) {
+                        *(ptr) = '\0';
+                        ptr += strlen(SEPARATOR);
+                        printf("FILE: %s PERMISSIONS: %s\n", recv_buf, ptr);
+                    }
+                }
+            }
         }
         close(conn_fd);
         printf("CLOSED");

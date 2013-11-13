@@ -33,25 +33,31 @@ int main(void)
     if(connect(sock_fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr))<0)
         err_handler("Connection failed");
 
-    send(sock_fd, "A", strlen("A"), NO_FLAGS);
-    if(wait_ack(sock_fd, recv_buf))
-        printf("works");
-    send(sock_fd, "A", strlen("A"), NO_FLAGS);
-    if(wait_ack(sock_fd, recv_buf))
-        printf("works");
-    send(sock_fd, "A", strlen("A"), NO_FLAGS);
-    if(wait_ack(sock_fd, recv_buf))
-        printf("works");
-    send(sock_fd, "A", strlen("A"), NO_FLAGS);
-    if(wait_ack(sock_fd, recv_buf))
-        printf("works");
+    send_file(sock_fd, "helpers.c");
     return 0; 
 }
 
 char send_file(int sock_fd, char* filepath) {
     char recv_buf[BUF_SIZE+1];
     memset(recv_buf, '\0', sizeof(recv_buf));
-    FILE* f = fopen(filepath);
+    FILE* f = fopen(filepath, "r");
+    if(f == NULL)
+        return -1;
+    /* Tell the server we are going to send a file */
+    send(sock_fd, OP_SEND_FILE, strlen(OP_SEND_FILE), NO_FLAGS);
+    if(!wait_ack)
+        return -1;
+
+    /* First send file path and file permissions */
+    char* permissions = get_permissions(filepath);
+    sprintf(recv_buf, "%s%s%s", filepath, SEPARATOR, permissions);
+    send(sock_fd, recv_buf, strlen(recv_buf), NO_FLAGS);
+    if(!wait_ack)
+        return -1;
+
+    /* Send the damn file */
+    free(permissions);
+    return 1;
 }
 
 char wait_ack(int sock_fd, char* buf) {
