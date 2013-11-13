@@ -15,7 +15,7 @@
 #define KEY "password"` */
 
 char* get_permissions(const char* path);
-char wait_ack(int sock_fd, char* buf);
+char wait_ack(int sock_fd, char* buf, size_t buf_size);
 char send_file(int sock_fd, char* filepath);
  
 int main(void)
@@ -33,7 +33,7 @@ int main(void)
     if(connect(sock_fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr))<0)
         err_handler("Connection failed");
 
-    send_file(sock_fd, "helpers.c");
+    printf("RETURN CODE: %d\n", send_file(sock_fd, "helpers.c"));
     return 0; 
 }
 
@@ -43,25 +43,40 @@ char send_file(int sock_fd, char* filepath) {
     FILE* f = fopen(filepath, "r");
     if(f == NULL)
         return -1;
+    printf("Opened file");
+
     /* Tell the server we are going to send a file */
     send(sock_fd, OP_SEND_FILE, strlen(OP_SEND_FILE), NO_FLAGS);
-    if(!wait_ack)
+    if(!wait_ack(sock_fd, recv_buf, sizeof(recv_buf)))
         return -1;
+    printf("ack 1");
 
     /* First send file path and file permissions */
     char* permissions = get_permissions(filepath);
     sprintf(recv_buf, "%s%s%s", filepath, SEPARATOR, permissions);
     send(sock_fd, recv_buf, strlen(recv_buf), NO_FLAGS);
-    if(!wait_ack)
+    if(!wait_ack(sock_fd, recv_buf, sizeof(recv_buf)))
         return -1;
+    printf("ack 2");
 
     /* Send the damn file */
+    printf("Prepare to send\n");
+    while(fgets(recv_buf, sizeof(recv_buf), f) != NULL) {
+        printf("Sending\n");
+        send(sock_fd, recv_buf, strlen(recv_buf), NO_FLAGS);
+        if(!wait_ack(sock_fd, recv_buf, sizeof(recv_buf)))
+            return -1;
+    }
+    send(sock_fd, OP_EOF, strlen(OP_EOF), NO_FLAGS);
+    printf("DONE");
     free(permissions);
     return 1;
 }
 
-char wait_ack(int sock_fd, char* buf) {
+char wait_ack(int sock_fd, char* buf, size_t buf_size) {
+    memset(buf, '\0', buf_size);
     recv(sock_fd, buf, BUF_SIZE, NO_FLAGS);
+    printf("WAITACK: %s\n", buf);
     return (strcmp(buf, ACK) == 0);
 }
 

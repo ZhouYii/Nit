@@ -11,7 +11,9 @@ test : test.c
 	$(CC) $(FLAGS) test.c -o run_these_tests
 
 server : server.c
-	$(CC) $(FLAGS) server.c -o server
+	$(CC) $(FLAGS) server.c -o nit_server
+	cp nit_server /usr/bin/
 
 client : client.c
-	$(CC) $(FLAGS) client.c -o client
+	$(CC) $(FLAGS) client.c -o nit_client
+	cp nit_client /usr/bin/

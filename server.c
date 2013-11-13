@@ -46,16 +46,44 @@ int main(int argc, char** argv) {
             printf("Client message: %s\n", recv_buf);
             if(strcmp(recv_buf, OP_SEND_FILE) == 0) {
                 printf("Waiting on a file!\n");
+                printf("Send ACK 1");
                 send(conn_fd, ACK, strlen(ACK), NO_FLAGS);
                 if(recv(conn_fd, recv_buf, BUF_SIZE, NO_FLAGS) > 0) {
-                    char* ptr;
-                    if((ptr = strstr(recv_buf, SEPARATOR)) != NULL) {
-                        *(ptr) = '\0';
-                        ptr += strlen(SEPARATOR);
-                        printf("FILE: %s PERMISSIONS: %s\n", recv_buf, ptr);
+                    printf("Send ACK 2");
+                    send(conn_fd, ACK, strlen(ACK), NO_FLAGS);
+                    char *perm_ptr, *filepath = recv_buf;
+                    if((perm_ptr = strstr(recv_buf, SEPARATOR)) != NULL) {
+                        *(perm_ptr) = '\0';
+                        perm_ptr += strlen(SEPARATOR);
+                        printf("FILE: %s PERMISSIONS: %s\n", filepath, perm_ptr);
+                        /* Right here we need to construct the folder path */
+                        FILE* f = fopen(filepath, "w");
+                        if(f == NULL)
+                            err_handler("Failed to open file");
+                        printf("Preparing to recieve\n");
+                        while(recv(conn_fd, recv_buf, BUF_SIZE, NO_FLAGS) > 0) {
+                            printf("RECV_BUF:%s\n", recv_buf);
+                            printf("STRNCMP: %d\n", strncmp(recv_buf, OP_EOF, strlen(OP_EOF)));
+                            if(strncmp(recv_buf, OP_EOF, strlen(OP_EOF)) == 0) {
+                                printf("ENDHEREHERERERER");
+                                fflush(f);
+                                break;
+                            }
+                            printf("Recieving\n");
+                            fputs(recv_buf, f);
+                            send(conn_fd, ACK, strlen(ACK), NO_FLAGS);
+                            /* Clear the buffer for accurate comparisons */
+                            memset(recv_buf, '\0', sizeof(recv_buf));
+                        }
+                        printf("OUR OF WHILE");
+                        if(strcmp(recv_buf, OP_EOF) == 0)
+                            printf("File transfer successful");
+                        else
+                            printf("No EOF?");
                     }
                 }
             }
+            printf("One Done");
         }
         close(conn_fd);
         printf("CLOSED");
