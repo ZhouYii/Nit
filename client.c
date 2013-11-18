@@ -10,13 +10,14 @@
 #include <arpa/inet.h>
 #include "const.c"
 #include "helpers.c"
-
+#include "socket_helpers.c"
 /* Think more about the authentication
 #define KEY "password"` */
 
 char* get_permissions(const char* path);
 char wait_ack(int sock_fd, char* buf, size_t buf_size);
 char send_file(int sock_fd, char* filepath);
+char get_file(int sock_fd, char* filepath);
  
 int main(void)
 {
@@ -33,23 +34,57 @@ int main(void)
     if(connect(sock_fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr))<0)
         err_handler("Connection failed");
 
-    printf("RETURN CODE: %d\n", send_file(sock_fd, "helpers.c"));
+    printf("RETURN CODE: %d\n", get_file(sock_fd, "test1"));
     return 0; 
+}
+char get_file(int sock_fd, char* filepath) {
+    char recv_buf[BUF_SIZE+1];
+    memset(recv_buf, '\0', sizeof(recv_buf));
+    send(sock_fd, OP_GET_FILE, strlen(OP_GET_FILE), NO_FLAGS);
+    printf("A");
+    if(!wait_ack(sock_fd, recv_buf, sizeof(recv_buf))) 
+        return -1;
+    printf("B");
+    send(sock_fd, filepath, strlen(filepath), NO_FLAGS);
+    if(!wait_ack(sock_fd, recv_buf, sizeof(recv_buf))) 
+        return -1;
+    send(sock_fd, ACK, strlen(ACK), NO_FLAGS);
+    printf("C");
+    /* TODO Make the folder structure */
+    FILE* f = fopen(filepath, "w");
+    if(f == NULL)
+        return -1;
+    printf("D");
+    memset(recv_buf, '\0', sizeof(recv_buf));
+    while(recv(sock_fd, recv_buf, BUF_SIZE, NO_FLAGS) > 0) {
+        char* loc = NULL;
+        if((loc = strstr(recv_buf, OP_EOF)) != NULL) 
+            *(loc) = '\0';
+        printf("WRITING TO FILE: %s", recv_buf);
+        fputs(recv_buf, f);
+        /* Clear the buffer for accurate comparisons */
+        memset(recv_buf, '\0', sizeof(recv_buf));
+        if(loc)
+            break;
+    }
+    printf("File transfer successful\n");
+    fflush(NULL);
+    fclose(f);
+
+    return 1;
 }
 
 char send_file(int sock_fd, char* filepath) {
     char recv_buf[BUF_SIZE+1];
     memset(recv_buf, '\0', sizeof(recv_buf));
     FILE* f = fopen(filepath, "r");
-    if(f == NULL)
+    if(f == NULL) 
         return -1;
-    printf("Opened file");
 
     /* Tell the server we are going to send a file */
     send(sock_fd, OP_SEND_FILE, strlen(OP_SEND_FILE), NO_FLAGS);
     if(!wait_ack(sock_fd, recv_buf, sizeof(recv_buf)))
         return -1;
-    printf("ack 1");
 
     /* First send file path and file permissions */
     char* permissions = get_permissions(filepath);
@@ -57,28 +92,19 @@ char send_file(int sock_fd, char* filepath) {
     send(sock_fd, recv_buf, strlen(recv_buf), NO_FLAGS);
     if(!wait_ack(sock_fd, recv_buf, sizeof(recv_buf)))
         return -1;
-    printf("ack 2");
 
-    /* Send the damn file */
-    printf("Prepare to send\n");
+    /* Send the file */
     while(fgets(recv_buf, sizeof(recv_buf), f) != NULL) {
-        printf("Sending\n");
         send(sock_fd, recv_buf, strlen(recv_buf), NO_FLAGS);
         if(!wait_ack(sock_fd, recv_buf, sizeof(recv_buf)))
             return -1;
     }
     send(sock_fd, OP_EOF, strlen(OP_EOF), NO_FLAGS);
-    printf("DONE");
     free(permissions);
+    close(sock_fd);
     return 1;
 }
 
-char wait_ack(int sock_fd, char* buf, size_t buf_size) {
-    memset(buf, '\0', buf_size);
-    recv(sock_fd, buf, BUF_SIZE, NO_FLAGS);
-    printf("WAITACK: %s\n", buf);
-    return (strcmp(buf, ACK) == 0);
-}
 
 /* Given a line from stat, finds the location of the 9 rwx digits.
  * skips the leading '-' character.
