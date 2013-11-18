@@ -40,25 +40,20 @@ int main(int argc, char** argv) {
         err_handler("Failed to listen on port");
 
     while(1) {
-        /* Reading from queue of requests */
         conn_fd = accept(socket_fd, (struct sockaddr*) NULL, NULL);
         while(recv(conn_fd, cmd_buf, BUF_SIZE, NO_FLAGS) > 0) 
         {
-            printf("Client message: %s\n", cmd_buf);
             send(conn_fd, ACK, strlen(ACK), NO_FLAGS);
-            printf("READING BUF"); //LLDB break here. Is the buf being initialized?
             if(recv(conn_fd, buf, BUF_SIZE, NO_FLAGS) <= 0) {
                 close(conn_fd);
                 break;
             }
-            printf("\nBUF CONTENTS %s\n", buf);
             send(conn_fd, ACK, strlen(ACK), NO_FLAGS);
+            /* Take action */
             if(strcmp(cmd_buf, OP_SEND_FILE) == 0)
                 recv_file(conn_fd);
-            if(strcmp(cmd_buf, OP_GET_FILE) == 0) {
-                printf("SEND FILE\n");
+            if(strcmp(cmd_buf, OP_GET_FILE) == 0) 
                 send_file(conn_fd);
-            }
             close(conn_fd);
         }
     }
@@ -69,21 +64,14 @@ void send_file(int conn_fd) {
     /* Client sends file name to recieve */
     FILE* f = fopen(buf, "r");
     if(f == NULL) {
-        printf("BUF CONTENTS: %s\n", buf);
-        printf("FILE OPEN FAIL\n");
         send(conn_fd, OP_DIE, strlen(OP_DIE), NO_FLAGS);
         return;
     }
     wait_ack(conn_fd, cmd_buf, sizeof(cmd_buf));
-    printf("SENT RESPONSE\n");
-    while(fgets(buf, sizeof(buf), f) != NULL) {
-        printf("whileLoop");
+    while(fgets(buf, sizeof(buf), f) != NULL) 
         send(conn_fd, buf, strlen(buf), NO_FLAGS);
-        printf("SENDING: %s", buf);
-    }
     send(conn_fd, OP_EOF, strlen(OP_EOF), NO_FLAGS);
     fclose(f);
-    printf("END OF SEND");
 }
 
 void recv_file(int conn_fd) {
@@ -94,11 +82,11 @@ void recv_file(int conn_fd) {
         /* Stick in a NULL and advance a pointer, effectively making two
          * strings. One for file path, one for permissions */
         perm_ptr += strlen(SEPARATOR);
-        /* TODO Right here we need to construct the folder path */
         FILE* f = fopen(filepath, "w");
         if(f == NULL)
             err_handler("Failed to open file");
-        printf("Preparing to recieve\n");
+        /* TODO: actual revision */
+        build_dirs(filepath, 0);
         while(recv(conn_fd, buf, BUF_SIZE, NO_FLAGS) > 0) {
             if(strncmp(buf, OP_EOF, strlen(OP_EOF)) == 0) {
                 fflush(f);
@@ -111,10 +99,7 @@ void recv_file(int conn_fd) {
         }
         if(strcmp(buf, OP_EOF) == 0)
             printf("File transfer successful\n");
-        else
-            printf("No EOF?\n");
-        /* We flush STDOUT because sometimes display messages are buffered
-         * but not printed */
         fflush(NULL);
+        fclose(f);
     }
 }

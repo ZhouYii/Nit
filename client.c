@@ -33,28 +33,26 @@ int main(void)
 
     if(connect(sock_fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr))<0)
         err_handler("Connection failed");
-
-    printf("RETURN CODE: %d\n", get_file(sock_fd, "test1"));
+    get_file(sock_fd, "helpers.c");
     return 0; 
 }
+
+
 char get_file(int sock_fd, char* filepath) {
     char recv_buf[BUF_SIZE+1];
     memset(recv_buf, '\0', sizeof(recv_buf));
     send(sock_fd, OP_GET_FILE, strlen(OP_GET_FILE), NO_FLAGS);
-    printf("A");
     if(!wait_ack(sock_fd, recv_buf, sizeof(recv_buf))) 
         return -1;
-    printf("B");
     send(sock_fd, filepath, strlen(filepath), NO_FLAGS);
     if(!wait_ack(sock_fd, recv_buf, sizeof(recv_buf))) 
         return -1;
     send(sock_fd, ACK, strlen(ACK), NO_FLAGS);
-    printf("C");
-    /* TODO Make the folder structure */
     FILE* f = fopen(filepath, "w");
     if(f == NULL)
         return -1;
-    printf("D");
+    /* TODO actual revision number */
+    build_dirs(filepath, 0);
     memset(recv_buf, '\0', sizeof(recv_buf));
     while(recv(sock_fd, recv_buf, BUF_SIZE, NO_FLAGS) > 0) {
         char* loc = NULL;
@@ -67,7 +65,6 @@ char get_file(int sock_fd, char* filepath) {
         if(loc)
             break;
     }
-    printf("File transfer successful\n");
     fflush(NULL);
     fclose(f);
 

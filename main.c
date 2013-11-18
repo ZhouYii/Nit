@@ -18,7 +18,6 @@ void serialize();
 void revert(const int revision);
 void set_up_nit();
 void delete(char* path);
-void build_dirs(char* path);
 
 int revision = -1;
 char cwd[BUF_SIZE];
@@ -190,7 +189,7 @@ char commit() {
     while(getline(&buf, &buf_size, db) != -1) {
         if(is_path) {
             strip_newline(buf);
-            build_dirs(buf);
+            build_dirs(buf, revision);
             sprintf(exec_buf, "cp %s ./.nit/%d/%s", buf, revision, buf);
             exec(exec_buf);
         }  
@@ -243,21 +242,3 @@ void serialize() {
     free(rev);
 }
 
-/* Matching file system tree in the store folder */
-void build_dirs(char* path) {
-    if(path == NULL)
-        err_handler("build_dirs took a NULL ptr");
-    int i = 0;
-    char* buf = malloc(sizeof(char) * (1 + BUF_SIZE));
-    buf[BUF_SIZE] = '\0';
-    while(path[i] != '\0') {
-        if(path[i] == '/') {
-            path[i] = '\0';
-            sprintf(buf, "mkdir ./.nit/%d/%s", revision, path);
-            path[i] = '/';
-            exec(buf);
-        }
-        i++;
-    }
-    free(buf);
-}
