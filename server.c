@@ -9,20 +9,24 @@
 #include <sys/types.h>
 #include "const.c"
 #include "helpers.c"
-#include "socket_helpers.c"
+
+void serv_init(const char* proj);
 void recv_file(int sock_fd);
 void send_file(int sock_fd);
 char buf[1+BUF_SIZE];
 char cmd_buf[1+BUF_SIZE];
 
 int main(int argc, char** argv) {
+    FILE* db = fopen(".nitdb", "r");
+    if(db == NULL) {
+        FILE* temp = fopen(".nitdb", "w");
+        fclose(temp);
+    }
     int socket_fd = 0, conn_fd =0;
     struct sockaddr_in server_addr;
-
     socket_fd = socket(PF_INET, SOCK_STREAM, 0);
     if(socket_fd == -1) 
         err_handler("Failed to get socked file descriptor");
-
     /* Zero the IPV6 compatibility bits */
     memset(&server_addr, '0', sizeof(server_addr));
     memset(&buf, '\0', sizeof(buf));
@@ -32,13 +36,12 @@ int main(int argc, char** argv) {
     /* Standardize endian-ness */
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     server_addr.sin_port = htons(PORT_NUM);
-
     if(bind(socket_fd, (struct sockaddr*) &server_addr, sizeof(server_addr)) == -1)
         err_handler("Failed to bind port");
-
     if(listen(socket_fd, 10) == -1)
         err_handler("Failed to listen on port");
 
+    serv_init("test project");
     while(1) {
         conn_fd = accept(socket_fd, (struct sockaddr*) NULL, NULL);
         while(recv(conn_fd, cmd_buf, BUF_SIZE, NO_FLAGS) > 0) 
@@ -59,6 +62,13 @@ int main(int argc, char** argv) {
     }
     return 0;
 }
+
+void serv_init(const char* proj_name) {
+    if(db_findline(proj_name)) 
+       return;
+    db_writeline(proj_name);
+}
+
 void send_file(int conn_fd) {
     strip_newline(buf);
     /* Client sends file name to recieve */
@@ -85,7 +95,6 @@ void recv_file(int conn_fd) {
         FILE* f = fopen(filepath, "w");
         if(f == NULL)
             err_handler("Failed to open file");
-        /* TODO: actual revision */
         build_dirs(filepath, 0);
         while(recv(conn_fd, buf, BUF_SIZE, NO_FLAGS) > 0) {
             if(strncmp(buf, OP_EOF, strlen(OP_EOF)) == 0) {

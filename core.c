@@ -1,3 +1,5 @@
+#ifndef core_c
+#define core_c
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
@@ -19,62 +21,10 @@ void revert(const int revision);
 void set_up_nit();
 void delete(char* path);
 
-int revision = -1;
-char cwd[BUF_SIZE];
-char* del;
-
-int main(int argc, char** argv) {
-    if(argc <= 1) {
-        printf(NO_CMD);
-        return 0;
-    }
-    char* cmd = argv[1];
-    if(strcmp(cmd, "init") == 0) 
-    {
-        printf("Welcome to Nit\n");
-        set_up_nit();
-    } 
-    else if (init_repo() == FALSE) 
-    {
-        err_handler("Nit init failed\n");
-    } 
-    else if(strcmp(cmd, "update") == 0) 
-    {
-        printf("Update source code\n");
-    } 
-    else if(strncmp(cmd, "commit", 6) == 0) 
-    {
-        printf("Committing revision %d.\n", revision);
-        commit();
-        serialize();
-    } 
-    else if(argc <= 2) 
-    {
-        /* Commands from this point on require an argument */
-        printf("Command need more arguments. Try Nit help. \n");
-    } 
-    else if(strncmp(cmd, "revert", 6) == 0) 
-    {
-        revert(atoi(argv[2]));
-        serialize();
-    } 
-    else if(strncmp(cmd, "add", 3) == 0) 
-    {
-        add_file(argv[2]);
-        serialize();
-    } 
-    else if(strncmp(cmd, "delete", 6) == 0) 
-    {
-        delete(argv[2]);
-        serialize();
-        return 0;
-    } else 
-    {
-        printf(NO_CMD);
-    }
-    return 0;
-}
-
+extern int revision;
+extern char cwd[BUF_SIZE];
+extern char buf[BUF_SIZE+1];
+extern char* del;
 void delete(char* path) {
     del = path;
 }
@@ -114,7 +64,7 @@ char init_repo() {
             free(line);
             err_handler("Failed to read revision number!");
         }
-        printf("Initialized at revision number %d.\n", revision);
+        printf("Currently at revision number %d.\n", revision);
 
         /* Recover CWD */
         if(getline(&line, &buf_size, load) != -1) {
@@ -204,6 +154,17 @@ char commit() {
 
 char push() {
     /* to server */
+    /* TODO: Takes a project name */
+    /* Sends a bunch of files to server */
+    memset(buf, '\0', sizeof(buf));
+    FILE *f = open_db("r");
+    skiplines(f, REPO_OFFSET);
+    while(getline(&buf, &buf_size, f) != -1) {
+        strip_newline(buf);
+        send_file(
+    }
+    /* Server recv function should take a project name for path prefix */
+    /* Send database file too? */
     return FALSE;
 }
 
@@ -227,7 +188,7 @@ void serialize() {
     char* rev = itoc(revision, num_digits(revision));
     if(rev == NULL)
         err_handler("Serializing revision failed");
-    printf("Serializing revision number %s.\n", rev);
+    printf("Currently at revision number %s.\n", rev);
     fprintf(f, "%s\n", rev);
     fprintf(f, "%s\n", cwd);
     skiplines(b, REPO_OFFSET);
@@ -241,4 +202,4 @@ void serialize() {
     free(buf);
     free(rev);
 }
-
+#endif
