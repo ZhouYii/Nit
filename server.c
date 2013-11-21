@@ -44,6 +44,7 @@ int main(int argc, char** argv) {
     while(1) {
         conn_fd = accept(socket_fd, (struct sockaddr*) NULL, NULL);
         printf("ACCEPTED");
+        /* Recieve opcode */
         while(recv(conn_fd, cmd_buf, BUF_SIZE, NO_FLAGS) > 0) 
         {
             send(conn_fd, ACK, strlen(ACK), NO_FLAGS);
