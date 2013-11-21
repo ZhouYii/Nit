@@ -10,4 +10,10 @@ Week 2: File Writes to server.
 	Buffer errors.
 	Flush errors.
 Week 3: File Reads from server. 
-	Introduced lots of redundant code.
+	Introduced lots of redundant code. (Good because server and client need to
+    do handshaking without missing any bytes).
+    New tests!
+    New comments!
+    New feature : Push-to-server.
+    New feature : Pull-from-server.
+
