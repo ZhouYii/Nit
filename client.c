@@ -15,11 +15,10 @@
 /* Think more about the authentication
 #define KEY "password"` */
 
-char send_file(int sock_fd, char* filepath);
-char get_file(int sock_fd, char* filepath);
 char init_repo();
 char add_file(const char* path);
-char push();
+char pull(int sock_fd);
+char push(int sock_fd);
 char commit();
 void serialize();
 void revert(const int revision);
@@ -44,7 +43,10 @@ int main(int argc, char** argv)
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(PORT_NUM);
     serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    
+
+    if(connect(sock_fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr))<0)
+        err_handler("Connection failed");
+
     /* Enter interpretation loop */
     if(argc <= 1) 
         err_handler("No commands where given");
@@ -64,6 +66,14 @@ int main(int argc, char** argv)
     if(strcmp(cmd, "push") == 0) {
         printf("Pushing revision %d to server\n", revision);
         push(sock_fd);
+        return 0;
+    }
+
+    if(strcmp(cmd, "pull") == 0) {
+        if(revision <= 0)
+            err_handler("Server has no pushes!");
+        printf("Pulling revision %d from server\n", revision-1);
+        pull(sock_fd);
         return 0;
     }
     
@@ -230,19 +240,46 @@ char commit() {
     return TRUE;
 } 
 
+/* Pulls the previous revision from server */
+char pull(int sock_fd) {
+    /* from server */
+    /* TODO: Takes a project name */
+    size_t buf_size = BUF_SIZE;
+    char *buf = malloc(sizeof(char) * (1+BUF_SIZE));
+    memset(recv_buf, '\0', sizeof(recv_buf));
+    FILE* f = fopen(".nitdb", "r");
+    skiplines(f, REPO_OFFSET);
+    while(getline(&buf, &buf_size, f) != -1) {
+        strip_newline(buf);
+        printf("Downloading file to server : %s\n", buf);
+        get_file(sock_fd, buf);
+        /* Throw away a line */
+        getline(&buf, &buf_size, f);
+        memset(buf, '\0', buf_size);
+    }
+    return FALSE;
+}
+
+/* Sends current revision files to server */
 char push(int sock_fd) {
     /* to server */
     /* TODO: Takes a project name */
-    /* Sends a bunch of files to server */
     size_t buf_size = BUF_SIZE;
+    char *buf = malloc(sizeof(char) * (1+BUF_SIZE));
     memset(recv_buf, '\0', sizeof(recv_buf));
-    FILE *f = open_db("r");
+    //FILE *f = open_db("r");
+    FILE* f = fopen(".nitdb", "r");
+    //if(f == NULL) 
+    //    err_handler("Failed to open db from commit()");
+
     skiplines(f, REPO_OFFSET);
-    while(getline((char**)&recv_buf, &buf_size, f) != -1) {
-        strip_newline(recv_buf);
-        printf("Sending file to server : %s\n", recv_buf);
-        send_file(sock_fd, recv_buf);
-        memset(recv_buf, '\0', sizeof(recv_buf));
+    while(getline(&buf, &buf_size, f) != -1) {
+        strip_newline(buf);
+        printf("Sending file to server : %s\n", buf);
+        send_file(sock_fd, buf);
+        /* Throw away a line */
+        getline(&buf, &buf_size, f);
+        memset(buf, '\0', buf_size);
     }
     return FALSE;
 }

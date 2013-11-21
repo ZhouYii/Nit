@@ -92,7 +92,6 @@ char get_file(int sock_fd, char* filepath) {
         char* loc = NULL;
         if((loc = strstr(recv_buf, OP_EOF)) != NULL) 
             *(loc) = '\0';
-        printf("WRITING TO FILE: %s\n", recv_buf);
         fputs(recv_buf, f);
         /* Clear the buffer for accurate comparisons */
         memset(recv_buf, '\0', sizeof(recv_buf));
@@ -108,8 +107,6 @@ char get_file(int sock_fd, char* filepath) {
 char send_file(int sock_fd, char* filepath) {
     memset(recv_buf, '\0', sizeof(recv_buf));
     FILE* f = fopen(filepath, "r");
-    if(f == NULL) 
-        return -1;
 
     /* Tell the server we are going to send a file */
     send(sock_fd, OP_SEND_FILE, strlen(OP_SEND_FILE), NO_FLAGS);
@@ -124,14 +121,15 @@ char send_file(int sock_fd, char* filepath) {
         return -1;
 
     /* Send the file */
+    memset(recv_buf, '\0', sizeof(recv_buf));
     while(fgets(recv_buf, sizeof(recv_buf), f) != NULL) {
         send(sock_fd, recv_buf, strlen(recv_buf), NO_FLAGS);
         if(!wait_ack(sock_fd, recv_buf, sizeof(recv_buf)))
             return -1;
+        memset(recv_buf, '\0', sizeof(recv_buf));
     }
     send(sock_fd, OP_EOF, strlen(OP_EOF), NO_FLAGS);
     free(permissions);
-    close(sock_fd);
     return 1;
 }
 

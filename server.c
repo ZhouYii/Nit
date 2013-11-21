@@ -41,12 +41,13 @@ int main(int argc, char** argv) {
     if(listen(socket_fd, 10) == -1)
         err_handler("Failed to listen on port");
 
-    serv_init("test project");
     while(1) {
         conn_fd = accept(socket_fd, (struct sockaddr*) NULL, NULL);
+        printf("ACCEPTED");
         while(recv(conn_fd, cmd_buf, BUF_SIZE, NO_FLAGS) > 0) 
         {
             send(conn_fd, ACK, strlen(ACK), NO_FLAGS);
+            memset(buf, '\0', sizeof(buf));
             if(recv(conn_fd, buf, BUF_SIZE, NO_FLAGS) <= 0) {
                 close(conn_fd);
                 break;
@@ -57,8 +58,8 @@ int main(int argc, char** argv) {
                 recv_file(conn_fd);
             if(strcmp(cmd_buf, OP_GET_FILE) == 0) 
                 send_file(conn_fd);
-            close(conn_fd);
         }
+        close(conn_fd);
     }
     return 0;
 }
@@ -96,6 +97,7 @@ void recv_file(int conn_fd) {
         if(f == NULL)
             err_handler("Failed to open file");
         build_dirs(filepath, 0);
+        memset(buf, '\0', sizeof(buf));
         while(recv(conn_fd, buf, BUF_SIZE, NO_FLAGS) > 0) {
             if(strncmp(buf, OP_EOF, strlen(OP_EOF)) == 0) {
                 fflush(f);
